@@ -63,7 +63,7 @@ class AuthController extends Controller
         $user->save();
         //event(new UserPasswordChanged(Auth::id()));
         // Rediriger avec un message de succès
-        return redirect()->route('accueil')->with('success', 'Votre mot de passe a été modifié avec succès.');
+        return redirect()->route('accueil')->with('successModify', 'Votre mot de passe a été modifié avec succès.');
     }
     public function reinitialiser()
     {
