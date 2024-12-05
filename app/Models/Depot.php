@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -42,5 +43,14 @@ class Depot extends Model
     public function fournisseurs()
     {
         return $this->hasMany(Fournisseur::class, 'idDepot');
+    }
+    public function transfertsSource()
+    {
+        return $this->hasMany(Transfert::class, 'idDepotSource');
+    }
+
+    public function transfertsDestination()
+    {
+        return $this->hasMany(Transfert::class, 'idDepotDestination');
     }
 }

@@ -39,4 +39,9 @@ class Fournisseur extends Model
     {
         return $this->belongsTo(Depot::class, 'idDepot');
     }
+    public function articles()
+    {
+        return $this->hasMany(Article::class, 'idArticle');
+    }
+
 }

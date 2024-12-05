@@ -9,6 +9,7 @@ class Article extends Model
 {
     use HasFactory;
     protected $fillable = [
+        'idFournisseur',
         'designation',
         'quantitePack',
         'unite'
@@ -30,5 +31,8 @@ class Article extends Model
     {
         return $this->hasMany(Tarif::class,  'idArticle', 'id');
     }
-
+    public function fournisseur()
+    {
+        return $this->belongsTo(Fournisseur::class, 'idFournisseur');
+    }
 }

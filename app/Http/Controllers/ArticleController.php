@@ -1,9 +1,11 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use App\Models\Article;
 use App\Models\Stock;
 use App\Models\FactureAchat;
+use App\Models\Fournisseur;
 use App\Models\Depot;
 use App\Models\Tarif;
 use Illuminate\Http\Request;
@@ -16,7 +18,7 @@ use Illuminate\Database\QueryException;
 
 class ArticleController extends Controller
 {
-    
+
     public function getArticleStock(Request $request)
     {
         // Récupérer la désignation depuis le paramètre de requête et décoder les caractères spéciaux
@@ -41,8 +43,8 @@ class ArticleController extends Controller
 
         // Récupérer le stock pour l'article et le dépôt spécifié
         $stock = Stock::where('idArticle', $article->id)
-                    ->where('idDepot', $depot->id)
-                    ->first();
+            ->where('idDepot', $depot->id)
+            ->first();
 
         // Vérifier si le stock existe et retourner la quantité disponible
         if ($stock) {
@@ -51,7 +53,7 @@ class ArticleController extends Controller
             return response()->json(['quantiteDepot' => 0], 200); // Retourner 0 si le stock n'existe pas
         }
     }
-    
+
     public function getArticlePrice(Request $request)
     {
         // Récupérer l'article en utilisant la désignation
@@ -67,7 +69,7 @@ class ArticleController extends Controller
         }
 
         // Récupérer le stock correspondant
-        $stock = Stock::where('idArticle', $article->id)->where('idDepot', $depot->id)->first(); 
+        $stock = Stock::where('idArticle', $article->id)->where('idDepot', $depot->id)->first();
 
         // Vérifier si le stock existe et retourner le prix moyen d'achat
         if ($stock) {
@@ -81,10 +83,10 @@ class ArticleController extends Controller
     {
         // Récupérer l'intitulé du dépôt en session
         $depotValue = session('depotValue');
-        
+
         // Requête pour récupérer l'ID du dépôt en fonction de son intitulé
         $depot = Depot::where('intitule', $depotValue)->first();
-        
+
         // Si le dépôt n'est pas trouvé, retourner une erreur
         if (!$depot) {
             return redirect()->back()->with('error', 'Dépôt non trouvé.');
@@ -111,7 +113,7 @@ class ArticleController extends Controller
 
         // Compter le nombre total de tous les articles
         $totalAllArticle = Article::count();
-        
+
         // Récupérer la valeur de codeValide
         $codeValide = $request->query('codeValide', 0);
 
@@ -124,14 +126,38 @@ class ArticleController extends Controller
 
     public function getListeArticles(Request $request)
     {
-        // Récupérer tous les articles sans relation avec depot, stock ou tarif
+        // Récupérer l'ID du dépôt sélectionné depuis la requête
+        $depotValue = session('depotValue');
+
+        // Requête pour récupérer l'ID du dépôt en fonction de son intitulé
+        $depot = Depot::where('intitule', $depotValue)->first();
+        $depotId = $depot->id; // Par exemple, 'depot_id' dans le formulaire ou les paramètres de l'URL
+
+        // Récupérer les articles (toujours sans relation avec dépôt, stock ou tarif)
         $articles = Article::orderBy('created_at', 'desc')->simplePaginate(10); // Pagination à 10 articles par page
+
+        // Vérifier si un dépôt a été sélectionné et récupérer les fournisseurs associés à ce dépôt
+        if ($depotId) {
+            // Récupérer les fournisseurs liés à ce dépôt
+            $fournisseurs = Fournisseur::where('idDepot', $depotId) // On filtre par l'ID du dépôt
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } else {
+            // Si aucun dépôt n'est sélectionné, récupérer tous les fournisseurs
+            $fournisseurs = Fournisseur::orderBy('created_at', 'desc')->get();
+        }
+
         // Compter le nombre total d'articles
         $totalArticle = Article::count();
 
-        // Passer les articles et le total à la vue
-        return view('creerArticle')->with('articles', $articles)->with('totalArticle', $totalArticle);
+        // Passer les articles, le total et les fournisseurs à la vue
+        return view('creerArticle')->with('articles', $articles)
+            ->with('totalArticle', $totalArticle)
+            ->with('fournisseurs', $fournisseurs); // Ajouter la variable des fournisseurs
     }
+
+
+
 
     public function creer(Request $request)
     {
@@ -145,7 +171,7 @@ class ArticleController extends Controller
             $article = Article::create([
                 'designation' => $request->designation,
                 'quantitePack' => $request->quantitePack, // Vous pouvez retirer cette ligne si elle n'est plus nécessaire
-                'unite'=> $request->unite
+                'unite' => $request->unite
             ]);
 
             // Retourner un message de succès
@@ -164,7 +190,7 @@ class ArticleController extends Controller
     public function ajouter(Request $request)
     {
         $articleId = $request->input('article_id');
-    
+
         // Vérifier si l'ID de l'article est valide
         $article = Article::find($articleId);
         if (!$article) {
@@ -181,8 +207,8 @@ class ArticleController extends Controller
         try {
             // Créer ou mettre à jour les entrées dans la table Stock
             $stock = Stock::where('idArticle', $article->id)
-                        ->where('idDepot', $depotId)
-                        ->first();
+                ->where('idDepot', $depotId)
+                ->first();
 
             if (!$stock) {
                 // Créer le stock si il n'existe pas
@@ -193,16 +219,15 @@ class ArticleController extends Controller
                     'prixMoyenAchat' => 0, // Prix moyen d'achat par défaut
                     'prixAchat' => 0, // Prix d'achat par défaut
                 ]);
-            }
-            else{
+            } else {
                 return back()->with('error', 'L\'article existe deja dans ce Depot.');
             }
 
             // Créer ou mettre à jour les tarifs associés (optionnel)
             $tarifs = Tarif::where('idArticle', $article->id)
-                        ->where('idDepot', $depotId)
-                        ->get();
-                        
+                ->where('idDepot', $depotId)
+                ->get();
+
 
             if ($tarifs->count() < 3) {
                 // Si moins de trois tarifs existent, en créer d'autres
@@ -229,21 +254,21 @@ class ArticleController extends Controller
         // Récupérer le dépôt à partir de la session
         $depotValue = session('depotValue');
         $depotId = Depot::where('intitule', $depotValue)->value('id');
-        
+
         if (!$depotId) {
             return redirect()->route('creationArticle', ['page' => 1])->with('error', 'Dépôt non trouvé.');
         }
-        
+
         // Vérifier s'il existe un enregistrement de l'article dans la table Stock pour ce dépôt
         $stock = Stock::where('idArticle', $article->id)->where('idDepot', $depotId)->first();
-        
+
         if ($stock) {
             return redirect()->route('creationArticle', ['page' => 1])->with('error', 'Impossible de supprimer l\'article car il existe encore un Stock associé à cet Article.');
         }
 
         // Si aucun stock n'existe, supprimer l'article
         $article->delete();
-        
+
         // Rediriger avec un message de succès
         return redirect()->route('creationArticle', ['page' => 1])->with('successDelete', 'Article supprimé avec succès.');
     }
@@ -252,7 +277,7 @@ class ArticleController extends Controller
     {
         // Récupérer la valeur du dépôt à partir de la session
         $depotValue = session('depotValue');
-        
+
         // Récupérer l'ID du dépôt
         $depotId = Depot::where('intitule', $depotValue)->value('id');
         if (!$depotId) {
@@ -276,7 +301,7 @@ class ArticleController extends Controller
         return redirect()->route('articleParDepot', ['page' => 1])->with('successDelete', 'Article supprimé avec succès.');
     }
 
-   
+
     public function update(Request $request, Article $article)
     {
         // Valider les données de la requête
@@ -301,10 +326,10 @@ class ArticleController extends Controller
     {
         // Récupérer l'ID du dépôt à partir de l'intitulé en session
         $depotId = Depot::where('intitule', session('depotValue'))->value('id');
-        
+
         // Récupérer le stock existant pour cet article et ce dépôt
         $stock = Stock::where('idArticle', $article->id)->where('idDepot', $depotId)->first();
-        
+
         // Validation des données du formulaire
         $request->validate(
             [
@@ -347,101 +372,101 @@ class ArticleController extends Controller
     }
 
 
-    
+
     public function rechercherArticle(Request $request)
     {
         $zoneChercher = $request->input('zoneChercher');
-    
+
         // Construire la requête de recherche par désignation
         $articles = Article::query();
-    
+
         if (!empty($zoneChercher)) {
             $articles->where('designation', 'LIKE', "%$zoneChercher%");
         }
-    
+
         // Trier par désignation et paginer les résultats
         $articles = $articles->orderBy("designation", "asc");
         $totalArticle = $articles->count();
         $articles = $articles->orderBy('created_at', 'desc')->simplePaginate(10)->appends(['zoneChercher' => $zoneChercher]);
-    
+
         // Retourner la vue avec les articles et les paramètres de recherche
         return view('creerArticle', compact('articles', 'zoneChercher'))->with('totalArticle', $totalArticle);
     }
-    
-    
-   public function rechercherArticle2(Request $request)
-{
-    $filterBy = $request->input('filterBy');
-    $zoneChercher = $request->input('zoneChercher');
-    $depotValue = session('depotValue');
-    $codeValide = $request->input('codeValide', 0); // Récupère le codeValide
 
-    // Obtenir l'ID du dépôt correspondant à l'intitulé
-    $depotId = Depot::where('intitule', $depotValue)->value('id');
 
-    // Construire la requête Eloquent pour les articles
-    $articles = Article::whereHas('stocks', function ($query) use ($depotId, $zoneChercher, $filterBy) {
-        $query->where('idDepot', $depotId);
+    public function rechercherArticle2(Request $request)
+    {
+        $filterBy = $request->input('filterBy');
+        $zoneChercher = $request->input('zoneChercher');
+        $depotValue = session('depotValue');
+        $codeValide = $request->input('codeValide', 0); // Récupère le codeValide
 
-        // Appliquer le filtre en fonction de la quantité si spécifié
-        if ($filterBy === 'quantiteEgal') {
-            $query->where('quantiteDepot', '=', $zoneChercher);
-        } elseif ($filterBy === 'quantiteInferieur') {
-            $query->where('quantiteDepot', '<', $zoneChercher);
-        } elseif ($filterBy === 'quantiteSuperieur') {
-            $query->where('quantiteDepot', '>', $zoneChercher);
-        }
-    })
-    ->with([
-        'stocks' => function ($query) use ($depotId) {
+        // Obtenir l'ID du dépôt correspondant à l'intitulé
+        $depotId = Depot::where('intitule', $depotValue)->value('id');
+
+        // Construire la requête Eloquent pour les articles
+        $articles = Article::whereHas('stocks', function ($query) use ($depotId, $zoneChercher, $filterBy) {
             $query->where('idDepot', $depotId);
-        },
-        'tarifs' => function ($query) use ($depotId) {
-            // Filtrer les tarifs pour le dépôt sélectionné et trier
-            $query->where('idDepot', $depotId)->orderBy('id', 'asc');
-        }
-    ]);
 
-    // Filtrer par désignation si applicable
-    if ($filterBy === 'designation') {
-        $articles->where('designation', 'LIKE', "%$zoneChercher%");
+            // Appliquer le filtre en fonction de la quantité si spécifié
+            if ($filterBy === 'quantiteEgal') {
+                $query->where('quantiteDepot', '=', $zoneChercher);
+            } elseif ($filterBy === 'quantiteInferieur') {
+                $query->where('quantiteDepot', '<', $zoneChercher);
+            } elseif ($filterBy === 'quantiteSuperieur') {
+                $query->where('quantiteDepot', '>', $zoneChercher);
+            }
+        })
+            ->with([
+                'stocks' => function ($query) use ($depotId) {
+                    $query->where('idDepot', $depotId);
+                },
+                'tarifs' => function ($query) use ($depotId) {
+                    // Filtrer les tarifs pour le dépôt sélectionné et trier
+                    $query->where('idDepot', $depotId)->orderBy('id', 'asc');
+                }
+            ]);
+
+        // Filtrer par désignation si applicable
+        if ($filterBy === 'designation') {
+            $articles->where('designation', 'LIKE', "%$zoneChercher%");
+        }
+
+        // Trier par désignation
+        $articles = $articles->orderBy("designation", "asc");
+
+        // Obtenir le nombre total d'articles filtrés
+        $totalArticle = $articles->count();
+
+        // Pagination des résultats avec codeValide
+        $articles = $articles->simplePaginate(10)->appends([
+            'filterBy' => $filterBy,
+            'zoneChercher' => $zoneChercher,
+            'codeValide' => $codeValide, // Inclure codeValide dans les liens de pagination
+        ]);
+
+        // Tous les articles paginés sans filtres
+        $allArticles = Article::orderBy('designation')->simplePaginate(10);
+
+        // Compter le nombre total de tous les articles
+        $totalAllArticle = Article::count();
+
+        // Retourner les résultats à la vue
+        return view('article', compact('articles', 'totalArticle', 'allArticles', 'totalAllArticle', 'codeValide'));
     }
 
-    // Trier par désignation
-    $articles = $articles->orderBy("designation", "asc");
-
-    // Obtenir le nombre total d'articles filtrés
-    $totalArticle = $articles->count();
-
-    // Pagination des résultats avec codeValide
-    $articles = $articles->simplePaginate(10)->appends([
-        'filterBy' => $filterBy,
-        'zoneChercher' => $zoneChercher,
-        'codeValide' => $codeValide, // Inclure codeValide dans les liens de pagination
-    ]);
-
-    // Tous les articles paginés sans filtres
-    $allArticles = Article::orderBy('designation')->simplePaginate(10);
-
-    // Compter le nombre total de tous les articles
-    $totalAllArticle = Article::count();
-
-    // Retourner les résultats à la vue
-    return view('article', compact('articles', 'totalArticle', 'allArticles', 'totalAllArticle', 'codeValide'));
-}
 
 
-    
     public function getPrixUnitaire($articleId, $quantite)
     {
         // Récupérer l'article et ses tarifs en fonction de l'ID
         $article = Article::findOrFail($articleId);
-        
+
         $depotId = Depot::where('intitule',  session('depotValue'))->value('id');
         $tarifs = Tarif::where('idArticle', $articleId)
-                   ->where('idDepot', $depotId)
-                   ->orderBy('quantite_min')
-                   ->get();
+            ->where('idDepot', $depotId)
+            ->orderBy('quantite_min')
+            ->get();
         // Trouver le tarif correspondant à la quantité spécifiée
         $prixUnitaire = null;
         foreach ($tarifs as $tarif) {
@@ -459,7 +484,7 @@ class ArticleController extends Controller
             'quantiteStock' => $quantiteStock,
             'quantitePack' => $article->quantitePack,
             'designation' => $article->designation,
-            'unite'=>$article->unite
+            'unite' => $article->unite
         ]);
     }
     public function import(Request $request)
@@ -498,6 +523,6 @@ class ArticleController extends Controller
 
         $codeValide = $request->query('codeValide', 0);
         // Passer les articles à la vue d'impression
-        return view('articles_impression', compact('articles','codeValide'));
+        return view('articles_impression', compact('articles', 'codeValide'));
     }
 }

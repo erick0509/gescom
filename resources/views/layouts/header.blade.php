@@ -104,7 +104,7 @@
                               Articles dans ce Dépôt</a>
                               </li> -->
                               <li>
-                                  <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#modalCodeAcces12">Articles dans ce Dépôt</a>
+                                  <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#modalCodeAcces12">Articles dans ce Dépôt ( Stock )</a>
                               </li>
 
                               <li><hr class="dropdown-divider"></li>
